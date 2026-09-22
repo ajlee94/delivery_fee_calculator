@@ -2464,6 +2464,41 @@
       .form-card.is-card-exiting { transform: none; filter: none; clip-path: inset(0 round var(--radius-lg)); }
       .form-card.is-card-entering { transform: none; filter: none; clip-path: inset(0 round var(--radius-lg)); }
     }
+    /* Record management uses the existing theme and stays reachable on small screens. */
+    .today-section-head, .difference-title-row { display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; }
+    .more-button { width: 44px; min-width: 44px; height: 44px; padding: 10px; display: inline-grid; place-items: center; border: 0; border-radius: 12px; color: var(--on-surface); background: transparent; cursor: pointer; }
+    .more-button:hover, .more-button[aria-expanded="true"], .more-button[aria-pressed="true"] { color: var(--primary); background: var(--surface-container); }
+    .more-button:disabled { opacity: .4; cursor: default; }
+    .more-button:focus-visible, .action-menu button:focus-visible, .card-delete-button:focus-visible { outline: 3px solid var(--primary); outline-offset: 2px; }
+    .difference-total { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px; color: var(--on-surface); font-size: 14px; }
+    .difference-total strong { color: var(--card-style-text); font-size: 24px; font-variant-numeric: tabular-nums; }
+    .today-order-name { display: flex; align-items: center; justify-content: space-between; gap: 4px; padding: 7px 8px 7px 14px; }
+    .today-order-name strong { min-width: 0; overflow-wrap: anywhere; }
+    .acceptance-group { position: relative; }
+    .acceptance-groups.is-managing .acceptance-group__summary { padding-right: 66px; }
+    .card-delete-button { position: absolute; top: 7px; right: 8px; z-index: 2; display: grid; place-items: center; width: 44px; height: 44px; padding: 6px; border: 0; background: transparent; cursor: pointer; }
+    .card-delete-button[hidden] { display: none; }
+    .card-delete-button span { display: grid; place-items: center; width: 32px; height: 32px; color: #fff; background: #b42332; border-radius: 50%; animation: delete-wiggle 380ms ease-in-out infinite alternate; }
+    .card-delete-button:hover span { background: #8f1422; }
+    @keyframes delete-wiggle { from { transform: rotate(-9deg); } to { transform: rotate(9deg); } }
+    .action-menu { position: fixed; z-index: 100; min-width: 152px; max-width: calc(100vw - 24px); padding: 6px; border: 1px solid var(--outline); border-radius: 12px; background: var(--surface-lowest); box-shadow: 0 8px 24px rgb(14 20 18 / 18%); }
+    .action-menu[hidden] { display: none; }
+    .action-menu button { display: block; width: 100%; min-height: 44px; padding: 10px 16px; border: 0; border-radius: 8px; background: transparent; color: var(--on-surface); text-align: left; font: inherit; cursor: pointer; }
+    .action-menu button:hover { background: var(--surface-container); }
+    .action-menu button[data-danger="true"] { color: #b42332; }
+    .record-editor { width: min(480px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); overflow: auto; }
+    .record-editor .confirm-dialog__body { display: grid; gap: 16px; }
+    .record-editor label { display: grid; gap: 7px; font-size: 14px; font-weight: 650; }
+    .record-editor input, .record-editor select { width: 100%; min-width: 0; min-height: 48px; padding: 10px; border: 1px solid var(--outline); border-radius: 10px; background: var(--surface-lowest); color: var(--on-surface); font: inherit; }
+    .record-editor input:focus, .record-editor select:focus { outline: 2px solid var(--primary); outline-offset: 1px; }
+    .record-editor .editor-error { margin: 0; color: #b42332; font-size: 13px; line-height: 1.6; }
+    .record-editor .editor-error:empty { display: none; }
+    .record-editor .editor-note { margin: 0; color: var(--on-surface-variant); font-size: 13px; line-height: 1.6; }
+    .record-fee-reminder { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 14px; border: 1px solid var(--outline); border-radius: 12px; background: var(--surface-low); }
+    .record-fee-reminder[hidden] { display: none; }
+    .record-fee-reminder p { flex: 1 1 240px; margin: 0; font-size: 13px; line-height: 1.6; }
+    .delete-fee-note { white-space: pre-line; }
+    @media (prefers-reduced-motion: reduce) { .card-delete-button span { animation: none; } }
   </style>
 </head>
 <body data-card-style="default" data-active-page="input">
@@ -2681,7 +2716,12 @@
 
       <div class="today-section-head">
         <h2>接單卡明細</h2>
-        <p>同一張接單卡的訂單歸為一組；每筆訂單固定一列，方便依接單時間、完成時間與基本時薪外送費逐項核對。</p>
+        <button class="more-button" id="manage-cards" type="button" aria-label="刪除接單卡模式" aria-pressed="false" aria-controls="today-groups"><svg class="icon" aria-hidden="true"><use href="#i-more"></use></svg></button>
+      </div>
+      <div class="record-fee-reminder" id="record-fee-reminder" role="status" hidden>
+        <p id="record-fee-reminder-text"></p>
+        <button class="button button--tonal" id="review-deleted-fees" type="button">修改每日外送費</button>
+        <button class="more-button" id="dismiss-fee-reminder" type="button" aria-label="關閉外送費提醒"><svg class="icon" aria-hidden="true"><use href="#i-close"></use></svg></button>
       </div>
 
       <div class="acceptance-groups" id="today-groups" aria-live="polite"></div>
@@ -2692,16 +2732,16 @@
       <header class="difference-header">
         <div class="difference-title-row">
           <h1 id="differences-title">每日差額</h1>
-          <p class="difference-summary" id="difference-summary" aria-live="polite">14 天 · 0 天可計算</p>
+          <button class="more-button" id="difference-actions" type="button" aria-label="每日外送費選單" aria-haspopup="menu" aria-expanded="false" aria-controls="record-action-menu"><svg class="icon" aria-hidden="true"><use href="#i-more"></use></svg></button>
         </div>
         <div class="difference-period-field">
-          <label for="difference-period-select">結算週期</label>
-          <select id="difference-period-select" aria-describedby="difference-summary difference-status"></select>
+          <label for="difference-period-select" id="difference-period-label">結算週期（14 天）</label>
+          <select id="difference-period-select" aria-describedby="difference-status"></select>
         </div>
-        <p class="difference-status" id="difference-status">基本時薪外送費依目前計價基準估算；預估應補差額只計不足部分，最低為 0。</p>
+        <p class="difference-status difference-total" id="difference-status" aria-live="polite"><span>本期預估應補差額</span><strong id="difference-total-value">NT$ —</strong></p>
       </header>
 
-      <div class="difference-ledger" role="table" aria-labelledby="differences-title" aria-describedby="difference-summary difference-status">
+      <div class="difference-ledger" role="table" aria-labelledby="differences-title" aria-describedby="difference-status">
         <div class="difference-columns" role="row">
           <span role="columnheader">日期</span>
           <span role="columnheader">每日外送費</span>
@@ -2885,6 +2925,48 @@
     <svg class="icon" aria-hidden="true"><use href="#i-arrow-up"></use></svg>
   </button>
 
+  <svg width="0" height="0" aria-hidden="true" style="position:absolute"><defs>
+    <symbol id="i-more" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.6" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  </defs></svg>
+  <div class="action-menu" id="record-action-menu" role="menu" aria-label="操作選單" hidden></div>
+
+  <dialog class="confirm-dialog record-editor" id="order-edit-dialog" aria-labelledby="order-edit-title">
+    <form id="order-edit-form">
+      <div class="confirm-dialog__body">
+        <h2 id="order-edit-title">修改訂單</h2>
+        <label>接單日期與時間<input id="edit-order-accepted" type="datetime-local" step="any" required></label>
+        <label>完成日期與時間<input id="edit-order-finished" type="datetime-local" step="any" required></label>
+        <p class="editor-note" id="order-edit-day"></p>
+        <p class="editor-error" id="order-edit-error" role="alert"></p>
+      </div>
+      <div class="confirm-dialog__actions"><button class="button button--tonal" type="button" data-close-dialog="order-edit-dialog">取消</button><button class="button button--filled" type="submit">儲存修改</button></div>
+    </form>
+  </dialog>
+
+  <dialog class="confirm-dialog record-editor" id="record-delete-dialog" aria-labelledby="record-delete-title" aria-describedby="record-delete-description record-delete-fees">
+    <div class="confirm-dialog__body">
+      <h2 id="record-delete-title">確定刪除？</h2>
+      <p class="editor-note" id="record-delete-description"></p>
+      <p class="editor-note delete-fee-note" id="record-delete-fees"></p>
+      <p class="editor-error" id="record-delete-error" role="alert"></p>
+    </div>
+    <div class="confirm-dialog__actions"><button class="button button--tonal" type="button" data-close-dialog="record-delete-dialog" autofocus>取消</button><button class="button button--danger" id="confirm-record-delete" type="button">確認刪除</button></div>
+  </dialog>
+
+  <dialog class="confirm-dialog record-editor" id="difference-fee-dialog" aria-labelledby="difference-fee-title">
+    <form id="difference-fee-form">
+      <div class="confirm-dialog__body">
+        <h2 id="difference-fee-title">修改每日外送費</h2>
+        <label>日期（每日 04:00 換日）<select id="edit-fee-date"></select></label>
+        <label>每日外送費（NT$）<input id="edit-fee-amount" type="text" inputmode="decimal" required autocomplete="off" placeholder="尚未記錄"></label>
+        <p class="editor-note">儲存後會覆蓋該日金額，所有頁面同步更新。零元請輸入 0。</p>
+        <p class="editor-error" id="edit-fee-error" role="alert"></p>
+      </div>
+      <div class="confirm-dialog__actions"><button class="button button--tonal" type="button" data-close-dialog="difference-fee-dialog">取消</button><button class="button button--filled" type="submit">儲存修改</button></div>
+    </form>
+  </dialog>
+
   <dialog class="confirm-dialog" id="clear-dialog" aria-labelledby="clear-dialog-title" aria-describedby="clear-dialog-description">
     <div class="confirm-dialog__body">
       <div class="confirm-dialog__title-row">
@@ -3035,7 +3117,7 @@
       const dailyFeeSaveLabel = document.querySelector("#daily-fee-save-label");
       const dailyFeeStatus = document.querySelector("#daily-fee-status");
       const differencePeriodSelect = document.querySelector("#difference-period-select");
-      const differenceSummary = document.querySelector("#difference-summary");
+      const differenceTotalValue = document.querySelector("#difference-total-value");
       const differenceRows = document.querySelector("#difference-rows");
       const recordScopeButtons = [...document.querySelectorAll("[data-record-scope-option]")];
       const pricingForm = document.querySelector("#pricing-form");
@@ -3077,6 +3159,19 @@
       let draftTimer;
       let businessDayTimer;
       let isSaving = false;
+      let cardDeleteMode = false;
+      let menuAnchor = null;
+      let pendingRecordAction = null;
+      let deletedFeeDates = [];
+      const manageCardsButton = document.querySelector("#manage-cards");
+      const actionMenu = document.querySelector("#record-action-menu");
+      const orderEditDialog = document.querySelector("#order-edit-dialog");
+      const recordDeleteDialog = document.querySelector("#record-delete-dialog");
+      const feeEditDialog = document.querySelector("#difference-fee-dialog");
+      const editAccepted = document.querySelector("#edit-order-accepted");
+      const editFinished = document.querySelector("#edit-order-finished");
+      const editFeeDate = document.querySelector("#edit-fee-date");
+      const editFeeAmount = document.querySelector("#edit-fee-amount");
 
       initializationIntro.textContent = "將這台裝置的計價資料清除，並把每單保障額與每小時基準還原為模板預設值；介面樣式會保留。";
       initializationDialogDescription.textContent = "這會清除這台裝置上的接單卡、每日外送費與草稿，並將每單保障額與每小時基準還原為預設值；介面樣式不受影響。此操作無法復原。";
@@ -3133,7 +3228,11 @@
         groups.forEach(group => {
           group
             .sort((a, b) => a.savedAt - b.savedAt || b.index - a.index)
-            .forEach((item, index) => cardNumbers.set(item.index, index + 1));
+            .forEach((item, index) => {
+              const existing = Number(records[item.index]?.cardNumber);
+              // Deletion and date edits must not renumber surviving cards on reload.
+              cardNumbers.set(item.index, Number.isInteger(existing) && existing > 0 ? existing : index + 1);
+            });
         });
 
         let changed = false;
@@ -3367,7 +3466,7 @@
         return Number.isFinite(amount) ? `NT$ ${currency.format(amount)}` : String(value);
       }
 
-      function getOrdersForRecord(record) {
+      function getOrdersForRecord(record, pricing = pricingSettings || readPricingSettings()) {
         const state = record?.state || {};
         const acceptedTimes = Array.isArray(state.accepted) ? state.accepted : Array.isArray(state.pickup) ? state.pickup : [];
         const finishTimes = Array.isArray(state.finish) ? state.finish : [];
@@ -3380,10 +3479,12 @@
             name: normalizeOrderName(names[index], index + 1),
             accepted: acceptedTimes[index] || "",
             finished: finishTimes[index] || "",
-            calculation: calculateOrderGuarantee(acceptedTimes[index], finishTimes[index])
+            calculation: calculateOrderGuarantee(acceptedTimes[index], finishTimes[index], pricing)
           }))
+          .filter(order => order.calculation)
           .map(order => ({
             ...order,
+            businessDay: businessDateKey(order.calculation.accepted),
             durationSeconds: order.calculation?.durationSeconds,
             basePay10: order.calculation?.guarantee10,
             basePay: order.calculation?.guarantee
@@ -3411,24 +3512,25 @@
         Object.keys(readDailyFees()).forEach(key => {
           if (/^\d{4}-\d{2}-\d{2}$/.test(key)) addDateToPeriod(dateFromKey(key));
         });
-        readRecords().forEach(record => addDateToPeriod(new Date(record?.savedAt)));
+        readRecords().forEach(record => getOrdersForRecord(record).forEach(order => addDateToPeriod(new Date(order.accepted))));
+        getDraftOrderCalculations().forEach(order => addDateToPeriod(order.accepted));
         return [...keys].sort((a, b) => b.localeCompare(a));
       }
 
-      function calculateDifferenceDay(key, records, fees, pricing) {
-        const completed = [];
-        records.forEach(record => {
-          const savedAt = new Date(record?.savedAt);
-          if (!Number.isFinite(savedAt.getTime()) || businessDateKey(savedAt) !== key) return;
-          getOrdersForRecord(record).forEach(order => {
-            const calculation = calculateOrderGuarantee(order.accepted, order.finished, pricing);
-            if (calculation) completed.push(calculation);
-          });
-        });
+      function buildDayTotals(records, pricing) {
+        const totals = new Map();
+        records.forEach(record => getOrdersForRecord(record, pricing).forEach(order => {
+          const total = totals.get(order.businessDay) || { orderCount: 0, minimumPay10: 0n };
+          total.orderCount += 1;
+          total.minimumPay10 += order.basePay10;
+          totals.set(order.businessDay, total);
+        }));
+        return totals;
+      }
 
-        const minimumPay10 = completed.length
-          ? completed.reduce((sum, order) => sum + order.guarantee10, 0n)
-          : undefined;
+      function calculateDifferenceDay(key, records, fees, pricing, totals = null) {
+        const total = (totals || buildDayTotals(records, pricing)).get(key);
+        const minimumPay10 = total?.minimumPay10;
         const minimumPay = minimumPay10 === undefined ? undefined : tenthsToNumber(minimumPay10);
 
         const dailyFee = getDailyFee(key, fees);
@@ -3437,7 +3539,7 @@
           ? undefined
           : minimumPay10 > dailyFee10 ? minimumPay10 - dailyFee10 : 0n;
         const difference = difference10 === undefined ? undefined : tenthsToNumber(difference10);
-        return { dailyFee, dailyFee10, minimumPay, minimumPay10, difference, difference10, orderCount: completed.length };
+        return { dailyFee, dailyFee10, minimumPay, minimumPay10, difference, difference10, orderCount: total?.orderCount || 0 };
       }
 
       function getDraftOrderCalculations(pricing = pricingSettings) {
@@ -3453,12 +3555,10 @@
           .filter(Boolean);
       }
 
-      function calculateLiveDifferenceDay(key, records, fees, pricing, draftCalculations = null) {
-        const stored = calculateDifferenceDay(key, records, fees, pricing);
-        const currentKey = businessDateKey();
-        if (key !== currentKey || (activeCardBusinessDateKey && activeCardBusinessDateKey !== currentKey)) return stored;
-
-        const draft = draftCalculations || getDraftOrderCalculations(pricing);
+      function calculateLiveDifferenceDay(key, records, fees, pricing, draftCalculations = null, totals = null) {
+        const stored = calculateDifferenceDay(key, records, fees, pricing, totals);
+        const draft = (draftCalculations || getDraftOrderCalculations(pricing))
+          .filter(order => businessDateKey(order.accepted) === key);
         if (!draft.length) return stored;
         const draftMinimumPay10 = draft.reduce((sum, order) => sum + order.guarantee10, 0n);
         const minimumPay10 = (stored.minimumPay10 || 0n) + draftMinimumPay10;
@@ -3491,6 +3591,7 @@
         row.className = "difference-row";
         row.setAttribute("role", "row");
         row.dataset.current = String(key === currentKey);
+        row.dataset.date = key;
 
         const dateCell = document.createElement("div");
         dateCell.className = "difference-date";
@@ -3564,23 +3665,27 @@
         const fees = readDailyFees();
         const pricing = pricingSettings || readPricingSettings();
         const draftCalculations = getDraftOrderCalculations(pricing);
+        const totals = buildDayTotals(records, pricing);
         let calculableCount = 0;
+        let periodDifference10 = 0n;
         const rows = selectedKeys.map(key => {
-          const values = key === currentKey
-            ? calculateLiveDifferenceDay(key, records, fees, pricing, draftCalculations)
-            : calculateDifferenceDay(key, records, fees, pricing);
-          if (values.difference !== undefined) calculableCount += 1;
+          const values = calculateLiveDifferenceDay(key, records, fees, pricing, draftCalculations, totals);
+          if (values.difference10 !== undefined) {
+            calculableCount += 1;
+            periodDifference10 += values.difference10;
+          }
           return createDifferenceRow(key, values, currentKey);
         });
         differenceRows.replaceChildren(...rows);
-        differenceSummary.textContent = `${selectedKeys.length} 天 · ${calculableCount} 天可計算`;
+        differenceTotalValue.textContent = calculableCount ? formatDifferenceMoney(tenthsToNumber(periodDifference10)) : "NT$ —";
+        document.querySelector("#difference-period-label").textContent = `結算週期（${selectedKeys.length} 天）`;
       }
 
-      function createTodayGroup(record) {
-        const orders = getOrdersForRecord(record);
+      function createTodayGroup(record, orders = getOrdersForRecord(record)) {
         const basePay10 = orders.reduce((sum, order) => sum + (order.basePay10 || 0n), 0n);
         const group = document.createElement("details");
         group.className = "acceptance-group";
+        group.dataset.recordId = String(record.id);
         group.open = true;
 
         const summary = document.createElement("summary");
@@ -3593,6 +3698,9 @@
         const titleStrong = document.createElement("strong");
         titleStrong.textContent = `接單卡 ${record.cardNumber || "—"}`;
         title.append(titleStrong);
+        const dateLabel = document.createElement("small");
+        dateLabel.textContent = [...new Set(orders.map(order => order.businessDay))].sort().map(key => formatMonthDay(dateFromKey(key))).join("、");
+        title.append(dateLabel);
 
         const total = document.createElement("span");
         total.className = "acceptance-group__total";
@@ -3628,12 +3736,19 @@
           const row = document.createElement("article");
           row.className = "today-order-row";
           row.setAttribute("aria-label", order.name);
+          row.dataset.orderNumber = String(order.number);
 
           const name = document.createElement("div");
           name.className = "today-order-name";
           const nameStrong = document.createElement("strong");
           nameStrong.textContent = order.name;
           name.append(nameStrong);
+          const orderMenu = makeMoreButton(`${order.name}的操作選單`);
+          orderMenu.addEventListener("click", () => openActionMenu(orderMenu, [
+            { label: "修改", action: () => openOrderEditor(record.id, order.number) },
+            { label: "刪除", danger: true, action: () => openRecordDelete(record.id, order.number) }
+          ]));
+          name.append(orderMenu);
 
           const cells = [
             ["接單時間", formatTime(order.accepted), ""],
@@ -3655,8 +3770,285 @@
           timeline.append(item);
         });
         group.append(summary, timeline);
+        const deleteButton = document.createElement("button");
+        deleteButton.type = "button";
+        deleteButton.className = "card-delete-button";
+        deleteButton.hidden = !cardDeleteMode;
+        deleteButton.setAttribute("aria-label", `刪除接單卡 ${record.cardNumber}`);
+        deleteButton.innerHTML = '<span><svg class="icon" aria-hidden="true"><use href="#i-close"></use></svg></span>';
+        deleteButton.addEventListener("click", event => {
+          event.preventDefault();
+          event.stopPropagation();
+          openRecordDelete(record.id);
+        });
+        summary.append(deleteButton);
         return { group, orderCount: orders.length, basePay10 };
       }
+
+      function makeMoreButton(label) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "more-button order-more-button";
+        button.setAttribute("aria-label", label);
+        button.setAttribute("aria-haspopup", "menu");
+        button.setAttribute("aria-expanded", "false");
+        button.setAttribute("aria-controls", "record-action-menu");
+        button.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#i-more"></use></svg>';
+        return button;
+      }
+
+      function closeActionMenu(restoreFocus = false) {
+        actionMenu.hidden = true;
+        if (menuAnchor) {
+          menuAnchor.setAttribute("aria-expanded", "false");
+          if (restoreFocus && menuAnchor.isConnected) menuAnchor.focus({ preventScroll: true });
+        }
+        menuAnchor = null;
+      }
+
+      function openActionMenu(anchor, actions) {
+        if (menuAnchor === anchor && !actionMenu.hidden) { closeActionMenu(true); return; }
+        closeActionMenu();
+        menuAnchor = anchor;
+        anchor.setAttribute("aria-expanded", "true");
+        actionMenu.replaceChildren(...actions.map(item => {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.setAttribute("role", "menuitem");
+          button.dataset.danger = String(Boolean(item.danger));
+          button.textContent = item.label;
+          button.addEventListener("click", () => { closeActionMenu(true); item.action(); });
+          return button;
+        }));
+        actionMenu.hidden = false;
+        positionActionMenu();
+        actionMenu.querySelector("button")?.focus({ preventScroll: true });
+      }
+
+      function positionActionMenu() {
+        if (!menuAnchor || actionMenu.hidden) return;
+        const rect = menuAnchor.getBoundingClientRect();
+        if (rect.bottom < 0 || rect.top > innerHeight) { closeActionMenu(); return; }
+        const width = actionMenu.offsetWidth;
+        const height = actionMenu.offsetHeight;
+        actionMenu.style.left = `${Math.max(12, Math.min(rect.right - width, innerWidth - width - 12))}px`;
+        actionMenu.style.top = `${Math.max(12, rect.bottom + height + 8 < innerHeight ? rect.bottom + 4 : rect.top - height - 4)}px`;
+      }
+
+      actionMenu.addEventListener("keydown", event => {
+        const buttons = [...actionMenu.querySelectorAll("button")];
+        const index = buttons.indexOf(document.activeElement);
+        if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+          event.preventDefault();
+          const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 : (index + (event.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length;
+          buttons[next]?.focus();
+        } else if (event.key === "Escape") { event.preventDefault(); closeActionMenu(true); }
+        else if (event.key === "Tab") closeActionMenu(true);
+      });
+      document.addEventListener("pointerdown", event => {
+        if (!actionMenu.hidden && !actionMenu.contains(event.target) && !menuAnchor?.contains(event.target)) closeActionMenu();
+      });
+      window.addEventListener("resize", () => closeActionMenu());
+      document.addEventListener("scroll", () => positionActionMenu(), true);
+      document.querySelectorAll("[data-close-dialog]").forEach(button => button.addEventListener("click", () => document.getElementById(button.dataset.closeDialog).close()));
+      [orderEditDialog, recordDeleteDialog].forEach(dialog => dialog.addEventListener("close", () => { pendingRecordAction = null; }));
+
+      manageCardsButton.addEventListener("click", () => {
+        closeActionMenu();
+        cardDeleteMode = !cardDeleteMode;
+        manageCardsButton.setAttribute("aria-pressed", String(cardDeleteMode));
+        todayGroups.classList.toggle("is-managing", cardDeleteMode);
+        todayGroups.querySelectorAll(".card-delete-button").forEach(button => { button.hidden = !cardDeleteMode; });
+      });
+      document.querySelector("#difference-actions").addEventListener("click", event => openActionMenu(event.currentTarget, [
+        { label: "修改", action: () => openFeeEditor(getFullPeriodWindow(dateFromKey(differencePeriodSelect.value)).keys) }
+      ]));
+
+      function findStoredRecord(id) { return readRecords().find(record => String(record.id) === String(id)); }
+
+      function prepareRecordAction(recordId, orderNumber = null) {
+        const record = findStoredRecord(recordId);
+        if (!record) { showToast("這張接單卡已不存在，請重新選擇"); renderTodayOrders(); return null; }
+        const order = orderNumber === null ? null : getOrdersForRecord(record).find(item => item.number === orderNumber);
+        if (orderNumber !== null && !order) { showToast("這筆訂單已不存在，請重新選擇"); renderTodayOrders(); return null; }
+        pendingRecordAction = { recordId, orderNumber, snapshot: JSON.stringify(record) };
+        return { record, order };
+      }
+
+      function requireUnchangedRecord() {
+        if (!pendingRecordAction) throw new Error("請重新選擇訂單。");
+        const record = findStoredRecord(pendingRecordAction.recordId);
+        if (!record || JSON.stringify(record) !== pendingRecordAction.snapshot) throw new Error("這筆資料已在其他操作中變更，請取消後重新開啟。");
+        return record;
+      }
+
+      function toLocalDateTimeInput(value) {
+        const date = new Date(value);
+        const milliseconds = date.getMilliseconds();
+        return `${dateKey(date)}T${padDatePart(date.getHours())}:${padDatePart(date.getMinutes())}:${padDatePart(date.getSeconds())}${milliseconds ? `.${String(milliseconds).padStart(3, "0")}` : ""}`;
+      }
+
+      function updateEditedDay() {
+        const date = new Date(editAccepted.value);
+        document.querySelector("#order-edit-day").textContent = Number.isFinite(date.getTime())
+          ? `歸屬日期：${businessDateKey(date)}（依接單時間，每日 04:00 換日）` : "請填寫接單日期與時間。";
+      }
+      editAccepted.addEventListener("input", updateEditedDay);
+
+      function openOrderEditor(recordId, orderNumber) {
+        const selection = prepareRecordAction(recordId, orderNumber);
+        if (!selection) return;
+        document.querySelector("#order-edit-title").textContent = `修改${selection.order.name}`;
+        editAccepted.value = toLocalDateTimeInput(selection.order.accepted);
+        editFinished.value = toLocalDateTimeInput(selection.order.finished);
+        document.querySelector("#order-edit-error").textContent = "";
+        updateEditedDay();
+        orderEditDialog.showModal();
+      }
+
+      function replaceRecordOrder(record, number, accepted, finished) {
+        const state = record.state;
+        const pickup = [...(state.accepted || state.pickup || [])];
+        const finish = [...(state.finish || [])];
+        pickup[number - 1] = accepted;
+        finish[number - 1] = finished;
+        return { ...record, state: { ...state, pickup, finish, ...(Array.isArray(state.accepted) ? { accepted: [...pickup] } : {}) } };
+      }
+
+      function removeOrdersFromRecord(record, numbers) {
+        let result = record;
+        numbers.forEach(number => { result = replaceRecordOrder(result, number, "", ""); });
+        const names = [...(result.state.names || [])];
+        const locked = [...(result.state.locked || [])];
+        numbers.forEach(number => { names[number - 1] = ""; locked[number - 1] = false; });
+        return { ...result, state: { ...result.state, names, locked } };
+      }
+
+      function commitRecordChanges(records) {
+        const previousRecords = localStorage.getItem(RECORDS_KEY);
+        const previousDraft = localStorage.getItem(DRAFT_KEY);
+        const previousActiveId = activeRecordId;
+        try {
+          localStorage.setItem(RECORDS_KEY, JSON.stringify(records));
+          if (activeRecordId !== null && !records.some(record => String(record.id) === String(activeRecordId))) {
+            activeRecordId = null;
+            if (previousDraft !== null) localStorage.setItem(DRAFT_KEY, JSON.stringify(getState()));
+          }
+        } catch (error) {
+          activeRecordId = previousActiveId;
+          try {
+            if (previousRecords === null) localStorage.removeItem(RECORDS_KEY); else localStorage.setItem(RECORDS_KEY, previousRecords);
+            if (previousDraft === null) localStorage.removeItem(DRAFT_KEY); else localStorage.setItem(DRAFT_KEY, previousDraft);
+          } catch { /* Keep the error visible; never announce an unconfirmed write as saved. */ }
+          throw new Error("無法儲存變更，請檢查瀏覽器儲存空間後再試。");
+        }
+      }
+
+      function refreshRecordViews() {
+        closeActionMenu();
+        renderTodayOrders();
+        calculate();
+      }
+
+      document.querySelector("#order-edit-form").addEventListener("submit", event => {
+        event.preventDefault();
+        const errorLabel = document.querySelector("#order-edit-error");
+        if (!calculateOrderGuarantee(editAccepted.value, editFinished.value)) {
+          errorLabel.textContent = "請填寫完整日期與時間，完成時間必須晚於接單時間。";
+          editFinished.focus();
+          return;
+        }
+        try {
+          const record = requireUnchangedRecord();
+          const updated = replaceRecordOrder(record, pendingRecordAction.orderNumber, editAccepted.value, editFinished.value);
+          const oldOrder = getOrdersForRecord(record).find(order => order.number === pendingRecordAction.orderNumber);
+          const newDay = businessDateKey(new Date(editAccepted.value));
+          commitRecordChanges(readRecords().map(item => String(item.id) === String(record.id) ? updated : item));
+          orderEditDialog.close();
+          refreshRecordViews();
+          showToast(oldOrder.businessDay === newDay ? "訂單已修改，金額已重新計算" : `訂單已移至 ${newDay}，原日期與新日期已重新計算`);
+          manageCardsButton.focus({ preventScroll: true });
+        } catch (error) { errorLabel.textContent = error.message; }
+      });
+
+      function dailyFeeReminder(keys) {
+        return keys.map(key => {
+          const amount = getDailyFee(key);
+          return `${key} 的每日外送費${amount === undefined ? "尚未記錄" : `仍為 NT$ ${currency.format(amount)}`}，請檢查並視需要修改。`;
+        }).join("\n");
+      }
+
+      function openRecordDelete(recordId, orderNumber = null) {
+        const selection = prepareRecordAction(recordId, orderNumber);
+        if (!selection) return;
+        const orders = selection.order ? [selection.order] : getOrdersForRecord(selection.record);
+        document.querySelector("#record-delete-title").textContent = selection.order ? `刪除${selection.order.name}？` : `刪除接單卡 ${selection.record.cardNumber}？`;
+        document.querySelector("#record-delete-description").textContent = selection.order
+          ? "確認後會刪除這筆訂單並重新計算金額；最後一筆刪除後會移除空卡。此操作無法復原。"
+          : `確認後會刪除此卡全部 ${orders.length} 筆訂單（包含其他日期的訂單）並重新計算金額。此操作無法復原。`;
+        document.querySelector("#record-delete-fees").textContent = dailyFeeReminder([...new Set(orders.map(order => order.businessDay))].sort());
+        document.querySelector("#record-delete-error").textContent = "";
+        recordDeleteDialog.showModal();
+      }
+
+      document.querySelector("#confirm-record-delete").addEventListener("click", () => {
+        try {
+          const record = requireUnchangedRecord();
+          const number = pendingRecordAction.orderNumber;
+          const affected = getOrdersForRecord(record).filter(order => number === null || order.number === number);
+          const keys = [...new Set(affected.map(order => order.businessDay))].sort();
+          const updated = number === null ? null : removeOrdersFromRecord(record, [number]);
+          const records = readRecords().flatMap(item => String(item.id) !== String(record.id) ? [item] : updated && getOrdersForRecord(updated).length ? [updated] : []);
+          commitRecordChanges(records);
+          recordDeleteDialog.close();
+          deletedFeeDates = keys;
+          document.querySelector("#record-fee-reminder-text").textContent = dailyFeeReminder(keys);
+          document.querySelector("#record-fee-reminder").hidden = false;
+          refreshRecordViews();
+          showToast("已刪除並重新計算，請檢查該日每日外送費");
+          document.querySelector("#review-deleted-fees").focus({ preventScroll: true });
+        } catch (error) { document.querySelector("#record-delete-error").textContent = error.message; }
+      });
+
+      function loadFeeEditorValue() {
+        const amount = getDailyFee(editFeeDate.value);
+        editFeeAmount.value = amount === undefined ? "" : String(amount);
+        document.querySelector("#edit-fee-error").textContent = "";
+      }
+
+      function openFeeEditor(keys) {
+        const dates = [...new Set(keys)].sort();
+        editFeeDate.replaceChildren(...dates.map(key => {
+          const option = document.createElement("option"); option.value = key;
+          option.textContent = `${key}（${formatDifferenceDate(dateFromKey(key)).split(" ").pop()}）`;
+          return option;
+        }));
+        editFeeDate.value = dates.includes(businessDateKey()) ? businessDateKey() : dates[0];
+        loadFeeEditorValue();
+        feeEditDialog.showModal();
+      }
+      editFeeDate.addEventListener("change", loadFeeEditorValue);
+      document.querySelector("#review-deleted-fees").addEventListener("click", () => openFeeEditor(deletedFeeDates));
+      document.querySelector("#dismiss-fee-reminder").addEventListener("click", () => { document.querySelector("#record-fee-reminder").hidden = true; });
+
+      document.querySelector("#difference-fee-form").addEventListener("submit", event => {
+        event.preventDefault();
+        const errorLabel = document.querySelector("#edit-fee-error");
+        const amount10 = parseTenths(editFeeAmount.value);
+        if (amount10 === null || amount10 > BigInt(Number.MAX_SAFE_INTEGER) * 10n) {
+          errorLabel.textContent = "請輸入 0 以上且最多一位小數的金額；零元請輸入 0。";
+          editFeeAmount.focus(); return;
+        }
+        try {
+          const fees = readDailyFees();
+          fees[editFeeDate.value] = tenthsToNumber(amount10);
+          writeDailyFees(fees);
+          feeEditDialog.close();
+          refreshRecordViews();
+          if (!document.querySelector("#record-fee-reminder").hidden) document.querySelector("#record-fee-reminder-text").textContent = dailyFeeReminder(deletedFeeDates);
+          showToast(`${editFeeDate.value} 每日外送費已更新，所有頁面已同步`);
+        } catch { errorLabel.textContent = "無法儲存金額，請檢查瀏覽器儲存空間後再試。"; }
+      });
 
       function setDailyFeeStatus(message, state = "") {
         dailyFeeStatus.textContent = message;
@@ -3732,26 +4124,26 @@
         const now = new Date();
         const isPeriod = activeRecordScope === "period";
         const periodKeys = new Set(getPeriodWindow(now).keys);
-        const storedRecords = readRecords().filter(record => {
-          const savedAt = new Date(record.savedAt);
-          if (!Number.isFinite(savedAt.getTime())) return false;
-          return isPeriod ? periodKeys.has(businessDateKey(savedAt)) : isSameBusinessDay(savedAt, now);
-        });
-        const records = storedRecords;
+        const currentKey = businessDateKey(now);
+        const includesDay = key => isPeriod ? periodKeys.has(key) : key === currentKey;
+        const records = readRecords().map(record => ({ record, orders: getOrdersForRecord(record).filter(order => includesDay(order.businessDay)) }))
+          .filter(item => item.orders.length);
         const isEmpty = records.length === 0;
         let orderTotal = 0;
         let basePayTotal10 = 0n;
 
         todayTitle.textContent = isPeriod ? "本期外送費" : "今日外送費";
         const hasFeeData = renderOverviewFee(now, isPeriod);
+        const collapsedIds = new Set([...todayGroups.querySelectorAll('.acceptance-group:not([open])')].map(group => group.dataset.recordId));
         todayGroups.replaceChildren();
-        records.forEach(record => {
-          const rendered = createTodayGroup(record);
+        records.forEach(({ record, orders }) => {
+          const rendered = createTodayGroup(record, orders);
+          rendered.group.open = !collapsedIds.has(String(record.id));
           orderTotal += rendered.orderCount;
           basePayTotal10 += rendered.basePay10;
           todayGroups.append(rendered.group);
         });
-        const draftCalculations = getDraftOrderCalculations(pricingSettings || readPricingSettings());
+        const draftCalculations = getDraftOrderCalculations(pricingSettings || readPricingSettings()).filter(order => includesDay(businessDateKey(order.accepted)));
         const draftOrderCount = draftCalculations.length;
         orderTotal += draftOrderCount;
         basePayTotal10 += draftCalculations.reduce((sum, order) => sum + order.guarantee10, 0n);
@@ -3766,6 +4158,10 @@
             ? "本期尚無已儲存的接單卡。"
             : "今日尚無已儲存的接單卡。請至「輸入」頁完成並儲存接單卡。";
         todayEmptyState.hidden = !isEmpty;
+        manageCardsButton.disabled = isEmpty;
+        if (isEmpty) cardDeleteMode = false;
+        todayGroups.classList.toggle("is-managing", cardDeleteMode);
+        manageCardsButton.setAttribute("aria-pressed", String(cardDeleteMode));
       }
 
       function setSummaryScope(scope) {
@@ -4122,16 +4518,15 @@
 
       function draftBelongsToBusinessDay(state, currentKey = businessDateKey()) {
         const explicitKey = typeof state?.businessDay === "string" ? state.businessDay : "";
-        const timeValues = [...(state?.pickup || []), ...(state?.finish || [])].filter(Boolean);
+        const timeValues = [...(state?.accepted || state?.pickup || []), ...(state?.finish || [])].filter(Boolean);
         const timeKeys = new Set();
         for (const value of timeValues) {
           const date = new Date(value);
           if (!Number.isFinite(date.getTime())) return false;
           timeKeys.add(businessDateKey(date));
         }
-        if (timeKeys.size > 1 || (timeKeys.size === 1 && !timeKeys.has(currentKey))) return false;
-        if (explicitKey) return explicitKey === currentKey;
-        return timeKeys.size === 1;
+        // A service can cross 04:00; keep its source times until the user saves or clears it.
+        return timeValues.length > 0 || explicitKey === currentKey;
       }
 
       function restoreDraft() {
@@ -4147,7 +4542,7 @@
           const linkedRecord = state.activeRecordId === null || state.activeRecordId === undefined
             ? null
             : records.find(record => String(record?.id) === String(state.activeRecordId));
-          if (linkedRecord && isSameBusinessDay(linkedRecord.savedAt, new Date())) {
+          if (linkedRecord) {
             activeRecordId = linkedRecord.id;
             activeCardNumber = Number(linkedRecord.cardNumber) || nextCardNumber(records);
           } else {
@@ -4186,13 +4581,14 @@
         const currentKey = businessDateKey();
         const fees = readDailyFees();
         const records = readRecords();
-        const liveToday = calculateLiveDifferenceDay(currentKey, records, fees, pricingSettings, completed);
+        const totals = buildDayTotals(records, pricingSettings);
+        const liveToday = calculateLiveDifferenceDay(currentKey, records, fees, pricingSettings, completed, totals);
         const count = liveToday.orderCount;
         const minimumPay10 = liveToday.minimumPay10 || 0n;
         const minimumPay = tenthsToNumber(minimumPay10);
         const fee = getDailyFee(currentKey, fees);
         const fee10 = fee === undefined ? null : numberToTenths(fee);
-        const difference10 = fee10 === null ? null : minimumPay10 > fee10 ? minimumPay10 - fee10 : 0n;
+        const difference10 = liveToday.difference10 ?? null;
         const difference = difference10 === null ? null : tenthsToNumber(difference10);
         syncLiveTodayViews(liveToday);
 
@@ -4205,9 +4601,7 @@
           let periodDifference10 = 0n;
           let calculableDays = 0;
           windowState.keys.forEach(key => {
-            const values = key === currentKey
-              ? calculateLiveDifferenceDay(key, records, fees, pricingSettings, completed)
-              : calculateDifferenceDay(key, records, fees, pricingSettings);
+            const values = calculateLiveDifferenceDay(key, records, fees, pricingSettings, completed, totals);
             periodOrderCount += values.orderCount;
             if (values.dailyFee10 !== undefined && values.dailyFee10 !== null) {
               periodFee10 += values.dailyFee10;
@@ -4240,6 +4634,15 @@
           estimateCaption.textContent = count ? "逐單取高並進位後加總" : "完成至少一筆時間後顯示";
         }
 
+        if (activeRecordScope === "period") {
+          const scopeKeys = getPeriodWindow().keys;
+          const scopeValues = scopeKeys.map(key => calculateLiveDifferenceDay(key, records, fees, pricingSettings, completed, totals));
+          const scopeCount = scopeValues.reduce((sum, value) => sum + value.orderCount, 0);
+          const scopePay = scopeValues.reduce((sum, value) => sum + (value.minimumPay10 || 0n), 0n);
+          todayOrderCount.textContent = `${scopeCount} 單`;
+          todayBasePay.textContent = scopeCount ? formatDifferenceMoney(tenthsToNumber(scopePay)) : "NT$ —";
+        }
+        renderDifferences();
         return {
           count,
           fee: fee ?? null,
@@ -4347,7 +4750,7 @@
         const record = sourceRecord
           ? {
               ...sourceRecord,
-              state: { ...sourceState, orderCount, pickup, finish, names, locked, timeMode: activeTimeMode, businessDay: businessDateKey() }
+              state: { ...sourceState, ...(Array.isArray(sourceState.accepted) ? { accepted: [...pickup] } : {}), orderCount, pickup, finish, names, locked, timeMode: activeTimeMode, businessDay: sourceState.businessDay || businessDateKey() }
             }
           : {
               id: nextRecordId(records),
@@ -4434,7 +4837,7 @@
       }
 
       function nextCardNumber(records = readRecords(), reference = new Date()) {
-        const todayRecords = records.filter(record => isSameBusinessDay(record?.savedAt, reference));
+        const todayRecords = records.filter(record => record?.state?.businessDay === businessDateKey(reference) || getOrdersForRecord(record).some(order => order.businessDay === businessDateKey(reference)));
         const savedNumbers = todayRecords.map(record => Number(record.cardNumber)).filter(Number.isFinite);
         return savedNumbers.length ? Math.max(...savedNumbers) + 1 : todayRecords.length + 1;
       }
@@ -4469,6 +4872,16 @@
         }
         if (activeCardBusinessDateKey === currentKey) return false;
         selectedDailyFeeDateKey = currentKey;
+        const hasDraftInput = orderCards.some(card => [...card.querySelectorAll("input")].some(input => input.value));
+        if (hasDraftInput || activeRecordId !== null) {
+          activeCardBusinessDateKey = currentKey;
+          localStorage.setItem(DRAFT_KEY, JSON.stringify(getState()));
+          renderTodayOrders();
+          calculate();
+          scheduleBusinessDayRollover();
+          if (announce) showToast("已進入新的營業日，未儲存訂單已保留");
+          return false;
+        }
         resetCard();
         renderTodayOrders();
         renderDifferences();
@@ -4674,11 +5087,9 @@
         const fees = readDailyFees();
         const records = readRecords();
         const businessKeys = new Set(Object.keys(fees));
-        records.forEach(record => {
-          const savedAt = new Date(record.savedAt);
-          if (Number.isFinite(savedAt.getTime())) businessKeys.add(businessDateKey(savedAt));
-        });
-        const daySummaries = new Map([...businessKeys].map(key => [key, calculateDifferenceDay(key, records, fees, pricing)]));
+        const totals = buildDayTotals(records, pricing);
+        totals.forEach((_, key) => businessKeys.add(key));
+        const daySummaries = new Map([...businessKeys].map(key => [key, calculateDifferenceDay(key, records, fees, pricing, totals)]));
         const rows = [[
           "資料類型",
           "營業日",
@@ -4698,10 +5109,9 @@
         ]];
 
         records.forEach(record => {
-          const savedAt = new Date(record.savedAt);
-          const businessKey = Number.isFinite(savedAt.getTime()) ? businessDateKey(savedAt) : "";
-          const day = businessKey ? daySummaries.get(businessKey) || {} : {};
-          getOrdersForRecord(record).forEach(order => {
+          getOrdersForRecord(record, pricing).forEach(order => {
+            const businessKey = order.businessDay;
+            const day = daySummaries.get(businessKey) || {};
             rows.push([
               "訂單",
               businessKey,
@@ -4811,6 +5221,7 @@
               ...state,
               orderCount: Math.max(1, orderTotal),
               pickup: Array.from({ length: orderTotal }, (_, index) => acceptedTimes[index] || ""),
+              ...(Array.isArray(state.accepted) ? { accepted: Array.from({ length: orderTotal }, (_, index) => acceptedTimes[index] || "") } : {}),
               finish: Array.from({ length: orderTotal }, (_, index) => finishTimes[index] || ""),
               names: Array.from({ length: orderTotal }, (_, index) => normalizeOrderName(names[index], index + 1)),
               locked: Array.from({ length: orderTotal }, (_, index) => Boolean(lockedStates[index]))
@@ -5108,7 +5519,11 @@
       });
 
       function resetTodayCards() {
-        const remainingRecords = readRecords().filter(record => !isSameBusinessDay(record?.savedAt));
+        const currentKey = businessDateKey();
+        const remainingRecords = readRecords().map(record => {
+          const numbers = getOrdersForRecord(record).filter(order => order.businessDay === currentKey).map(order => order.number);
+          return removeOrdersFromRecord(record, numbers);
+        }).filter(record => getOrdersForRecord(record).length);
         if (remainingRecords.length) localStorage.setItem(RECORDS_KEY, JSON.stringify(remainingRecords));
         else localStorage.removeItem(RECORDS_KEY);
         resetCard();
