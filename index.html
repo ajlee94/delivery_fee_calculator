@@ -6528,7 +6528,7 @@
         updateQuickActionState();
       }
 
-      function setTimeMode(mode, focusField = false) {
+      function setTimeMode(mode) {
         activeTimeMode = mode === "finish" ? "finish" : "pickup";
         form.dataset.timeMode = activeTimeMode;
         timeTabs.forEach(tab => tab.setAttribute("aria-selected", String(tab.dataset.timeMode === activeTimeMode)));
@@ -6537,10 +6537,7 @@
         timeModeSwap.setAttribute("aria-label", `切換至${nextModeLabel}`);
         timeModeSwap.setAttribute("title", `切換至${nextModeLabel}`);
         syncModeVisibility(false);
-        if (focusField) {
-          const firstUnlocked = orderCards.find(card => card.dataset.locked !== "true");
-          firstUnlocked?.querySelector(`[data-time-panel="${activeTimeMode}"] input`)?.focus();
-        }
+        // Mode switches must not focus datetime inputs: iOS can open its native picker.
       }
 
       function syncOrderSaveReady(card) {
@@ -7402,12 +7399,12 @@
 
       timeTabs.forEach(tab => {
         tab.addEventListener("click", () => {
-          setTimeMode(tab.dataset.timeMode, true);
+          setTimeMode(tab.dataset.timeMode);
           saveDraft();
         });
       });
       timeModeSwap.addEventListener("click", () => {
-        setTimeMode(activeTimeMode === "pickup" ? "finish" : "pickup", false);
+        setTimeMode(activeTimeMode === "pickup" ? "finish" : "pickup");
         saveDraft();
       });
 
