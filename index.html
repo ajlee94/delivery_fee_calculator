@@ -4963,7 +4963,6 @@
       catMeowTrack.preload = "none";
       let catMeowsRemaining = 0;
       let catMeowTimer;
-      let audioUnlocked = false;
 
       function playEffect(kind) {
         if (document.hidden || !AUDIO_SOURCES[kind] || kind === "bgm" || kind === "meow") return;
@@ -5001,7 +5000,7 @@
 
       function syncGroceryBgm() {
         bgmTrack.volume = audioSettings.bgm / 100;
-        if (!audioUnlocked || !bgmEnabled || activeCardStyle !== "grocery" || document.hidden || audioSettings.bgm === 0) {
+        if (!bgmEnabled || activeCardStyle !== "grocery" || document.hidden || audioSettings.bgm === 0) {
           bgmTrack.pause();
           return;
         }
@@ -5042,13 +5041,13 @@
       bgmVolumeInput.addEventListener("input", () => setAudioVolume("bgm", bgmVolumeInput.value));
       effectsVolumeInput.addEventListener("input", () => setAudioVolume("effects", effectsVolumeInput.value));
 
-      function unlockAudio() {
-        audioUnlocked = true;
+      // A denied autoplay can resume on any later page activation, without toggling the speaker.
+      document.addEventListener("click", event => {
+        if (event.target instanceof Element && event.target.closest("#grocery-speaker")) return;
         syncGroceryBgm();
-      }
-      document.addEventListener("pointerdown", unlockAudio, { once: true });
+      }, true);
       document.addEventListener("keydown", event => {
-        if (!event.repeat && (event.key === "Enter" || event.key === " ")) unlockAudio();
+        if (!event.repeat && (event.key === "Enter" || event.key === " ")) syncGroceryBgm();
       });
       document.addEventListener("visibilitychange", () => {
         syncGroceryBgm();
@@ -6294,7 +6293,6 @@
         try { localStorage.setItem(BGM_ENABLED_KEY, String(bgmEnabled)); }
         catch { /* The current-page toggle still works without storage. */ }
         renderGrocerySpeaker();
-        audioUnlocked = true;
         syncGroceryBgm();
         reactGroceryStage("action", bgmEnabled ? "音樂開啟囉！" : "音樂暫停囉！");
       });
